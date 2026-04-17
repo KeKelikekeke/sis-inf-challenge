@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from sisinf.solver_hom_bkz import (  # noqa: E402
 def main(argv: list[str] | None = None) -> int:
     """Run the smoke CLI and return a process exit code."""
 
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
+
     parser = argparse.ArgumentParser(description="Run homogeneous SIS infinity-norm BKZ baseline smoke test.")
     parser.add_argument("--problem", type=int, default=1, help="Homogeneous problem index. Default: 1.")
     parser.add_argument("--beta", type=int, default=10, help="BKZ block size. Default: 10.")
@@ -31,6 +34,34 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--use-search", action="store_true", help="Expand reduced rows with pairwise candidate search.")
     parser.add_argument("--pair-max-base", type=int, default=20, help="Maximum base rows used for pairwise search.")
     parser.add_argument("--pair-budget", type=int, default=200, help="Maximum generated pairwise combination vectors.")
+    parser.add_argument(
+        "--combo-mode",
+        choices=["basic", "small-coeff"],
+        default="basic",
+        help="Combination search mode. Default keeps the original {-1,0,1} pairwise search.",
+    )
+    parser.add_argument(
+        "--combo-max-base",
+        type=int,
+        default=4,
+        help="Maximum ranked base vectors used by small-coeff mode. Default: 4.",
+    )
+    parser.add_argument(
+        "--combo-budget",
+        type=int,
+        default=100,
+        help="Maximum generated small-coefficient combination vectors. Default: 100.",
+    )
+    parser.add_argument(
+        "--include-triples",
+        action="store_true",
+        help="Allow very limited three-vector small-coefficient combinations under combo-budget.",
+    )
+    parser.add_argument(
+        "--no-filter-trivial-candidates",
+        action="store_true",
+        help="Disable the default trivial/impossible candidate filter for regression comparisons.",
+    )
     args = parser.parse_args(argv)
 
     inst = load_problem(args.problem)
@@ -46,9 +77,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"max_loops: {args.max_loops}")
     print(f"top_k: {args.top_k}")
     print(f"use_search: {args.use_search}")
+    print(f"filter_trivial_candidates: {not args.no_filter_trivial_candidates}")
     if args.use_search:
         print(f"pair_max_base: {args.pair_max_base}")
         print(f"pair_budget: {args.pair_budget}")
+        print(f"combo_mode: {args.combo_mode}")
+        print(f"combo_max_base: {args.combo_max_base}")
+        print(f"combo_budget: {args.combo_budget}")
+        print(f"include_triples: {args.include_triples}")
     print()
 
     if args.use_search:
@@ -59,6 +95,11 @@ def main(argv: list[str] | None = None) -> int:
             top_k=args.top_k,
             pair_max_base=args.pair_max_base,
             pair_budget=args.pair_budget,
+            filter_trivial_candidates=not args.no_filter_trivial_candidates,
+            combo_mode=args.combo_mode,
+            combo_max_base=args.combo_max_base,
+            combo_budget=args.combo_budget,
+            include_triples=args.include_triples,
         )
         print(summarize_candidate_pool(cands))
     else:
@@ -67,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             beta=args.beta,
             max_loops=args.max_loops,
             top_k=args.top_k,
+            filter_trivial_candidates=not args.no_filter_trivial_candidates,
         )
         print(summarize_candidate_list(cands))
     print()
