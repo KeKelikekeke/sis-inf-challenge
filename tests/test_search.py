@@ -15,6 +15,7 @@ from sisinf.search import (  # noqa: E402
     generate_small_coefficient_combinations,
     rank_candidates,
     search_homogeneous_candidate_pool,
+    select_search_base_vectors,
     sort_candidates_by_selection_score,
     vector_fingerprint,
 )
@@ -121,6 +122,44 @@ def test_filter_candidates_for_main_pool_removes_trivial_and_impossible() -> Non
 
     disabled = filter_candidates_for_main_pool(inst, [trivial, impossible, promising], enabled=False)
     assert disabled == [trivial, impossible, promising]
+
+
+def test_search_base_pool_keeps_nontrivial_rows_that_exceed_gamma() -> None:
+    """Search bases may exceed gamma because combinations can cancel them later."""
+
+    inst = _small_inst()
+    rows = [
+        _lattice_vec(inst, np.array([1, 0]), np.array([0, 0])),
+        _lattice_vec(inst, np.array([0, 0]), np.array([4, 0])),
+        _lattice_vec(inst, np.array([0, 0]), np.array([0, 4])),
+    ]
+
+    base_vecs = select_search_base_vectors(inst, rows, base_top_k=5)
+
+    assert len(base_vecs) == 2
+    base_cands = []
+    for vec in base_vecs:
+        u = vec[: inst.n]
+        v = vec[inst.n :]
+        base_cands.append((u, v))
+    assert all(np.any(v != 0) for _, v in base_cands)
+
+
+def test_final_candidate_pool_still_filters_norm_exceeded_candidates() -> None:
+    """The final pool remains strict even though search-base selection is relaxed."""
+
+    inst = _small_inst()
+    rows = np.array(
+        [
+            _lattice_vec(inst, np.array([0, 0]), np.array([4, 0])),
+            _lattice_vec(inst, np.array([0, 0]), np.array([0, 4])),
+        ],
+        dtype=np.int64,
+    )
+
+    cands = collect_homogeneous_candidates_from_row_basis(inst, rows, top_k=5)
+
+    assert cands == []
 
 
 def test_sort_candidates_by_selection_score_is_stable_and_repeatable() -> None:
@@ -283,6 +322,22 @@ def test_search_small_coeff_mode_adds_bounded_candidate_diversity() -> None:
     assert (2, 1) in enhanced_vs
     assert (2, 1) not in basic_vs
     assert len(enhanced_vs) > len(basic_vs)
+
+
+def test_search_modes_receive_nonempty_relaxed_base_input_when_rows_exceed_gamma() -> None:
+    """Basic and small-coeff search can start from over-bound nontrivial rows."""
+
+    inst = _small_inst()
+    base_vecs = [
+        _lattice_vec(inst, np.array([0, 0]), np.array([4, 0])),
+        _lattice_vec(inst, np.array([0, 0]), np.array([0, 4])),
+    ]
+
+    selected_basic = select_search_base_vectors(inst, base_vecs, base_top_k=2)
+    selected_small = select_search_base_vectors(inst, base_vecs, base_top_k=2)
+
+    assert len(selected_basic) == 2
+    assert len(selected_small) == 2
 
 
 def test_reduced_row_selection_scores_before_top_k() -> None:

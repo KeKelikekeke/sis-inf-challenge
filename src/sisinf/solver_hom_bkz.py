@@ -21,10 +21,10 @@ from sisinf.lattice import (
     to_fpylll_integer_matrix,
 )
 from sisinf.search import (
-    candidate_selection_score,
     candidate_is_trivial,
     filter_candidates_for_main_pool,
     search_homogeneous_candidate_pool,
+    select_search_base_vectors,
     sort_candidates_by_selection_score,
     summarize_candidate_filter_stats,
     summarize_candidate_selection_order,
@@ -152,7 +152,7 @@ def collect_scored_reduced_row_vectors(
     top_k: int = 20,
     filter_trivial_candidates: bool = True,
 ) -> list[np.ndarray]:
-    """Select reduced rows by decoded candidate score before search expansion."""
+    """Select reduced rows with relaxed search-base filtering before expansion."""
 
     if not inst.homogeneous:
         raise ValueError(f"{inst.name} is inhomogeneous; scored row selection requires homogeneous input")
@@ -160,29 +160,12 @@ def collect_scored_reduced_row_vectors(
         raise ValueError(f"top_k must be non-negative, got {top_k}")
 
     rows = extract_row_vectors(B_row_red, limit=None)
-    pairs: list[tuple[np.ndarray, Candidate]] = []
-    for row in rows:
-        u, v = decode_lattice_vector_to_uv(row, inst)
-        pairs.append((row, validate_candidate(inst, u=u, v=v)))
-
-    cands = [cand for _, cand in pairs]
-    filtered_cands = filter_candidates_for_main_pool(inst, cands, enabled=filter_trivial_candidates)
-    filtered_ids = {id(cand) for cand in filtered_cands}
-    filtered_pairs = [(row, cand) for row, cand in pairs if id(cand) in filtered_ids]
-    logger.info(
-        summarize_candidate_filter_stats(
-            inst,
-            cands,
-            filtered_cands,
-            label="search_base_candidate_filter",
-            enabled=filter_trivial_candidates,
-        )
+    return select_search_base_vectors(
+        inst,
+        rows,
+        base_top_k=top_k,
+        filter_trivial_candidates=filter_trivial_candidates,
     )
-    logger.info(summarize_candidate_selection_order(inst, filtered_cands, label="search_base_selection_pre_sort", preview=20))
-    sorted_pairs = sorted(filtered_pairs, key=lambda item: candidate_selection_score(inst, item[1]))
-    sorted_cands = [cand for _, cand in sorted_pairs]
-    logger.info(summarize_candidate_selection_order(inst, sorted_cands, label="search_base_selection_post_sort", preview=20))
-    return [row for row, _ in sorted_pairs[:top_k]]
 
 
 def solve_homogeneous_bkz_baseline(

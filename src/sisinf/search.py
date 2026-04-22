@@ -121,6 +121,145 @@ def filter_candidates_for_main_pool(
     return [cand for cand in cands if candidate_filter_reason(inst, cand) is None]
 
 
+def search_base_filter_reason(cand: Candidate) -> str | None:
+    """Return the relaxed search-base filter reason for one candidate."""
+
+    if candidate_has_zero_v(cand):
+        return "v_zero"
+    if cand.linf_v == 0:
+        return "linf_v_zero"
+    if cand.l2sq < 0:
+        return "abnormal_negative_l2sq"
+    return None
+
+
+def search_base_selection_score(cand: Candidate) -> tuple[int, int]:
+    """Score a row by how useful it may be as a combination-search base."""
+
+    return (max(cand.linf_u, cand.linf_v), cand.l2sq)
+
+
+def summarize_search_base_pool_stats_for_inst(
+    inst: Instance,
+    cands_before: list[Candidate],
+    cands_after: list[Candidate],
+    selected: list[Candidate],
+    duplicate_row_count: int,
+    label: str,
+) -> str:
+    """Summarize relaxed search-base filtering with instance gamma."""
+
+    total_validated_rows = len(cands_before)
+    trivial_row_count = sum(1 for cand in cands_before if candidate_is_trivial(cand))
+    nontrivial_row_count = total_validated_rows - trivial_row_count
+    norm_exceeded_nontrivial_count = sum(
+        1
+        for cand in cands_before
+        if not candidate_is_trivial(cand) and candidate_exceeds_valid_main_bounds(inst, cand)
+    )
+    return "\n".join(
+        [
+            f"{label}: total_validated_rows={total_validated_rows}",
+            f"{label}: trivial_row_count={trivial_row_count}",
+            f"{label}: nontrivial_row_count={nontrivial_row_count}",
+            f"{label}: norm_exceeded_nontrivial_count={norm_exceeded_nontrivial_count}",
+            f"{label}: duplicate_row_count={duplicate_row_count}",
+            f"{label}: relaxed_remaining_count={len(cands_after)}",
+            f"{label}: selected_search_base_count={len(selected)}",
+        ]
+    )
+
+
+def summarize_search_base_selection_order(
+    cands: list[Candidate],
+    label: str,
+    preview: int = 20,
+) -> str:
+    """Summarize selected search-base rows with relaxed score components."""
+
+    if preview < 0:
+        raise ValueError(f"preview must be non-negative, got {preview}")
+    shown = min(len(cands), preview)
+    lines = [f"{label}: selected_search_base_count={len(cands)}, preview_count={shown}"]
+    for idx, cand in enumerate(cands[:shown], start=1):
+        max_linf, l2sq = search_base_selection_score(cand)
+        lines.append(
+            "{label}[{idx}]: score_search_base=({max_linf}, {l2sq}), "
+            "linf_u={linf_u}, linf_v={linf_v}, l2sq={l2sq}, "
+            "v_zero={v_zero}, linf_v_zero={linf_v_zero}, congruence_ok={congruence_ok}, "
+            "valid_extra={valid_extra}, valid_main={valid_main}".format(
+                label=label,
+                idx=idx,
+                max_linf=max_linf,
+                l2sq=l2sq,
+                linf_u=cand.linf_u,
+                linf_v=cand.linf_v,
+                v_zero=candidate_has_zero_v(cand),
+                linf_v_zero=cand.linf_v == 0,
+                congruence_ok=cand.congruence_ok,
+                valid_extra=cand.valid_extra,
+                valid_main=cand.valid_main,
+            )
+        )
+    return "\n".join(lines)
+
+
+def select_search_base_vector_pairs(
+    inst: Instance,
+    base_vecs: list[np.ndarray],
+    base_top_k: int = 20,
+    filter_trivial_candidates: bool = True,
+) -> list[tuple[np.ndarray, Candidate]]:
+    """Select relaxed nontrivial base vectors for linear-combination search."""
+
+    if base_top_k < 0:
+        raise ValueError(f"base_top_k must be non-negative, got {base_top_k}")
+
+    pairs: list[tuple[np.ndarray, Candidate]] = []
+    seen_vecs: set[tuple[int, ...]] = set()
+    duplicate_row_count = 0
+    for vec in base_vecs:
+        arr = np.asarray(vec, dtype=np.int64).reshape(-1)
+        key = vector_fingerprint(arr)
+        if key in seen_vecs:
+            duplicate_row_count += 1
+            continue
+        seen_vecs.add(key)
+        u, v = decode_lattice_vector_to_uv(arr, inst)
+        pairs.append((arr.copy(), validate_candidate(inst, u=u, v=v)))
+
+    all_cands = [cand for _, cand in pairs]
+    logger.info(summarize_decoded_vector_stats(inst, [row for row, _ in pairs], label="search_base_input_vectors", preview=100))
+    logger.info(
+        summarize_candidate_validation_stats(
+            all_cands,
+            label="search_base_candidates_pre_relaxed_filter",
+            preview=100,
+        )
+    )
+
+    if filter_trivial_candidates:
+        relaxed_pairs = [(row, cand) for row, cand in pairs if search_base_filter_reason(cand) is None]
+    else:
+        relaxed_pairs = list(pairs)
+    relaxed_cands = [cand for _, cand in relaxed_pairs]
+    sorted_pairs = sorted(relaxed_pairs, key=lambda item: search_base_selection_score(item[1]))
+    selected_pairs = sorted_pairs[:base_top_k]
+    selected_cands = [cand for _, cand in selected_pairs]
+    logger.info(
+        summarize_search_base_pool_stats_for_inst(
+            inst,
+            all_cands,
+            relaxed_cands,
+            selected_cands,
+            duplicate_row_count,
+            label="search_base_pool",
+        )
+    )
+    logger.info(summarize_search_base_selection_order(selected_cands, label="selected_search_base", preview=20))
+    return selected_pairs
+
+
 def candidate_valid_main_gap(inst: Instance, cand: Candidate) -> int:
     """Return a small penalty for missing pieces of the ``valid_main`` condition."""
 
@@ -236,40 +375,15 @@ def select_search_base_vectors(
 ) -> list[np.ndarray]:
     """Select nontrivial, scored base vectors for pairwise search expansion."""
 
-    if base_top_k < 0:
-        raise ValueError(f"base_top_k must be non-negative, got {base_top_k}")
-
-    pairs: list[tuple[np.ndarray, Candidate]] = []
-    for vec in base_vecs:
-        arr = np.asarray(vec, dtype=np.int64).reshape(-1)
-        u, v = decode_lattice_vector_to_uv(arr, inst)
-        pairs.append((arr.copy(), validate_candidate(inst, u=u, v=v)))
-
-    cands = [cand for _, cand in pairs]
-    logger.info(summarize_decoded_vector_stats(inst, [row for row, _ in pairs], label="search_base_input_vectors", preview=100))
-    logger.info(
-        summarize_candidate_validation_stats(
-            cands,
-            label="search_base_candidates_pre_filter",
-            preview=100,
-        )
-    )
-    filtered_cands = filter_candidates_for_main_pool(inst, cands, enabled=filter_trivial_candidates)
-    logger.info(
-        summarize_candidate_filter_stats(
+    return [
+        row
+        for row, _ in select_search_base_vector_pairs(
             inst,
-            cands,
-            filtered_cands,
-            label="search_base_candidate_filter",
-            enabled=filter_trivial_candidates,
+            base_vecs,
+            base_top_k=base_top_k,
+            filter_trivial_candidates=filter_trivial_candidates,
         )
-    )
-    filtered_ids = {id(cand) for cand in filtered_cands}
-    filtered_pairs = [(row, cand) for row, cand in pairs if id(cand) in filtered_ids]
-    logger.info(summarize_candidate_selection_order(inst, [cand for _, cand in filtered_pairs], label="search_base_selection_pre_sort", preview=20))
-    sorted_pairs = sorted(filtered_pairs, key=lambda item: candidate_selection_score(inst, item[1]))
-    logger.info(summarize_candidate_selection_order(inst, [cand for _, cand in sorted_pairs], label="search_base_selection_post_sort", preview=20))
-    return [row for row, _ in sorted_pairs[:base_top_k]]
+    ]
 
 
 def summarize_decoded_vector_stats(
