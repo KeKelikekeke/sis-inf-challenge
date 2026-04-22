@@ -7,6 +7,15 @@ from sisinf.flexible_d4f import (
     flexible_d4f_gamma_factor,
     run_flexible_d4f_on_reduced_basis,
 )
+from sisinf.hom_experiments import (
+    HomInstanceRunSummary,
+    format_run_summary,
+    format_scan_rows,
+    load_homogeneous_instance,
+    run_hom_instance_workflow,
+    scan_hom_parameter_grid,
+    write_scan_csv,
+)
 from sisinf.embedding import build_kannan_embedding_basis_matrix, solve_inhomogeneous_embedding_skeleton
 from sisinf.io import load_problem, parse_problem_file
 from sisinf.lattice import build_homogeneous_sis_basis_matrix
@@ -23,6 +32,15 @@ from sisinf.sieve_then_slice import (
 )
 from sisinf.solver import select_solver_path, solve_instance_baseline
 from sisinf.solver_hom_bkz import solve_homogeneous_bkz_baseline, solve_homogeneous_bkz_with_search
+from sisinf.solver_restricted_hom import (
+    RestrictedHomogeneousSolverResult,
+    choose_flexible_d4f_f_prime,
+    compute_algorithm8_len_bound,
+    estimate_row_gram_schmidt_norms,
+    run_restricted_svp_dispatcher_on_reduced_basis,
+    select_algorithm8_branch,
+    solve_homogeneous_restricted_svp,
+)
 from sisinf.two_step import (
     DiagnosticReducedRowBackend,
     ProjectedSubLattice,
@@ -45,7 +63,9 @@ __all__ = [
     "build_kannan_embedding_basis_matrix",
     "FlexibleD4FProjectedSubLattice",
     "FlexibleD4FResult",
+    "HomInstanceRunSummary",
     "load_problem",
+    "load_homogeneous_instance",
     "make_homogeneous_sis_infinity_restricted_svp",
     "parse_problem_file",
     "prob_infinity_norm_pass",
@@ -64,17 +84,29 @@ __all__ = [
     "select_solver_path",
     "solve_homogeneous_bkz_baseline",
     "solve_homogeneous_bkz_with_search",
+    "solve_homogeneous_restricted_svp",
     "solve_inhomogeneous_embedding_skeleton",
     "solve_instance_baseline",
+    "run_hom_instance_workflow",
+    "run_restricted_svp_dispatcher_on_reduced_basis",
     "run_flexible_d4f_on_reduced_basis",
     "run_sieve_then_slice_on_reduced_basis",
+    "scan_hom_parameter_grid",
     "solve_two_step_homogeneous",
     "summarize_required_list_size",
     "TwoStepReductionTarget",
     "TwoStepSolverResult",
+    "RestrictedHomogeneousSolverResult",
     "extract_flexible_d4f_projected_sublattice",
     "extract_projected_sublattice",
+    "estimate_row_gram_schmidt_norms",
+    "compute_algorithm8_len_bound",
+    "select_algorithm8_branch",
+    "choose_flexible_d4f_f_prime",
     "flexible_d4f_gamma_factor",
+    "format_run_summary",
+    "format_scan_rows",
     "run_two_step_on_reduced_basis",
     "validate_candidate",
+    "write_scan_csv",
 ]
