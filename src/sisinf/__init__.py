@@ -1,5 +1,12 @@
 """Utilities for the 2026 SIS infinity-norm challenge engineering layer."""
 
+from sisinf.flexible_d4f import (
+    FlexibleD4FProjectedSubLattice,
+    FlexibleD4FResult,
+    extract_flexible_d4f_projected_sublattice,
+    flexible_d4f_gamma_factor,
+    run_flexible_d4f_on_reduced_basis,
+)
 from sisinf.embedding import build_kannan_embedding_basis_matrix, solve_inhomogeneous_embedding_skeleton
 from sisinf.io import load_problem, parse_problem_file
 from sisinf.lattice import build_homogeneous_sis_basis_matrix
@@ -27,6 +34,8 @@ __all__ = [
     "Instance",
     "build_homogeneous_sis_basis_matrix",
     "build_kannan_embedding_basis_matrix",
+    "FlexibleD4FProjectedSubLattice",
+    "FlexibleD4FResult",
     "load_problem",
     "make_homogeneous_sis_infinity_restricted_svp",
     "parse_problem_file",
@@ -42,11 +51,14 @@ __all__ = [
     "solve_homogeneous_bkz_with_search",
     "solve_inhomogeneous_embedding_skeleton",
     "solve_instance_baseline",
+    "run_flexible_d4f_on_reduced_basis",
     "solve_two_step_homogeneous",
     "summarize_required_list_size",
     "TwoStepReductionTarget",
     "TwoStepSolverResult",
+    "extract_flexible_d4f_projected_sublattice",
     "extract_projected_sublattice",
+    "flexible_d4f_gamma_factor",
     "run_two_step_on_reduced_basis",
     "validate_candidate",
 ]
