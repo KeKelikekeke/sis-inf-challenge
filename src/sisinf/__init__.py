@@ -7,6 +7,18 @@ from sisinf.probability import prob_infinity_norm_pass, required_list_size
 from sisinf.restricted_svp import RestrictedSVPProblem, make_homogeneous_sis_infinity_restricted_svp
 from sisinf.solver import select_solver_path, solve_instance_baseline
 from sisinf.solver_hom_bkz import solve_homogeneous_bkz_baseline, solve_homogeneous_bkz_with_search
+from sisinf.two_step import (
+    DiagnosticReducedRowBackend,
+    ProjectedSubLattice,
+    RequiredListSizeSummary,
+    ShortVectorListBackend,
+    TwoStepReductionTarget,
+    TwoStepSolverResult,
+    extract_projected_sublattice,
+    run_two_step_on_reduced_basis,
+    solve_two_step_homogeneous,
+    summarize_required_list_size,
+)
 from sisinf.types import Candidate, Instance
 from sisinf.validate import validate_candidate
 
@@ -21,10 +33,20 @@ __all__ = [
     "prob_infinity_norm_pass",
     "required_list_size",
     "RestrictedSVPProblem",
+    "DiagnosticReducedRowBackend",
+    "ProjectedSubLattice",
+    "RequiredListSizeSummary",
+    "ShortVectorListBackend",
     "select_solver_path",
     "solve_homogeneous_bkz_baseline",
     "solve_homogeneous_bkz_with_search",
     "solve_inhomogeneous_embedding_skeleton",
     "solve_instance_baseline",
+    "solve_two_step_homogeneous",
+    "summarize_required_list_size",
+    "TwoStepReductionTarget",
+    "TwoStepSolverResult",
+    "extract_projected_sublattice",
+    "run_two_step_on_reduced_basis",
     "validate_candidate",
 ]
